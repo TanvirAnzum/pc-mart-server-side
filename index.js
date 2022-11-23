@@ -66,6 +66,46 @@ app.post("/jwt", (req, res) => {
   res.send({ token });
 });
 
+// function to connect with db
+
+async function run() {
+  try {
+    const productsDb = client.db("resaleDB").collection("products");
+
+    app.get("/products/:id", async (req, res) => {
+      const limit = req.query.limit;
+      const page = req.query.page;
+      const category = req.params.id;
+
+      const query = {};
+      if (category) query.category = brands[category];
+
+      const cursor = productsDb
+        .find(query)
+        .skip(page ? (limit ? page * limit : 0) : 0)
+        .limit(limit ? limit : 10);
+
+      const response = await cursor.toArray();
+      const totalCount = await productsDb.countDocuments(query);
+
+      res.send({
+        products: response,
+        totalCount: totalCount,
+      });
+    });
+
+    app.post("/products", async (req, res) => {
+      const data = req.body;
+      await productsDb.insertOne(data);
+      res.send(data);
+    });
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+run();
+
 app.listen(port, () => {
   console.log("server listening on port" + port);
 });
