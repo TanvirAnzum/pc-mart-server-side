@@ -159,6 +159,12 @@ async function run() {
         totalCount,
       });
     });
+
+    app.post("/users", async (req, res) => {
+      const data = req.body;
+      await usersDb.insertOne(data);
+      res.send(data);
+    });
   } catch (error) {
     console.log(error);
   }
