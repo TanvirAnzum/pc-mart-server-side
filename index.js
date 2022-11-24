@@ -5,6 +5,7 @@ require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
+const { response } = require("express");
 
 // express initialization
 
@@ -140,7 +141,24 @@ async function run() {
     const usersDb = client.db("resaleDB").collection("users");
 
     // get users
-    app.get("/users", async (req, res) => {});
+    app.get("/users", async (req, res) => {
+      const limit = req.query.limit;
+      const page = req.query.page;
+
+      const query = {};
+
+      const totalCount = await usersDb.countDocuments(query);
+      const cursor = usersDb
+        .find(query)
+        .skip(page ? (limit ? page * limit : 0) : 0)
+        .limit(limit ? limit : 10);
+      const response = await cursor.toArray();
+
+      res.send({
+        users: response,
+        totalCount,
+      });
+    });
   } catch (error) {
     console.log(error);
   }
