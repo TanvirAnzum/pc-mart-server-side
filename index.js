@@ -2,7 +2,7 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 
@@ -72,13 +72,25 @@ async function run() {
   try {
     const productsDb = client.db("resaleDB").collection("products");
 
-    app.get("/products/:id", async (req, res) => {
+    // getting products
+    app.get("/products/:id", verifyJWT, async (req, res) => {
       const limit = req.query.limit;
       const page = req.query.page;
-      const category = req.params.id;
+      const email = req.query.email;
+      const category_id = Number(req.params.id);
+
+      const category = {
+        1: "desktop",
+        2: "components",
+        3: "accessories",
+      };
+
+      if (email !== req.decoded.email) {
+        res.status(403).send({ message: "unauthorized access" });
+      }
 
       const query = {};
-      if (category) query.category = brands[category];
+      if (category_id) query.category = category[category_id];
 
       const cursor = productsDb
         .find(query)
@@ -94,10 +106,26 @@ async function run() {
       });
     });
 
+    // creating products
     app.post("/products", async (req, res) => {
       const data = req.body;
       await productsDb.insertOne(data);
       res.send(data);
+    });
+
+    // updating products
+    app.patch("/products/:id", async (req, res) => {
+      const updatedData = req.body;
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const options = { upsert: true };
+      const dataToUpdate = {
+        $set: {
+          ...updatedData.data,
+        },
+      };
+      const response = await productsDb.updateOne(query, dataToUpdate, options);
+      res.send(response);
     });
   } catch (error) {
     console.log(error);
