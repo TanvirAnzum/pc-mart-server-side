@@ -165,6 +165,27 @@ async function run() {
       await usersDb.insertOne(data);
       res.send(data);
     });
+
+    app.patch("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const options = { upsert: true };
+      const updatedData = req.body;
+      const dataToUpdate = {
+        $set: {
+          ...updatedData,
+        },
+      };
+      const response = await usersDb.updateOne(query, dataToUpdate, options);
+      res.send(response);
+    });
+
+    app.delete("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const response = await usersDb.deleteOne(query);
+      res.send(response);
+    });
   } catch (error) {
     console.log(error);
   }
