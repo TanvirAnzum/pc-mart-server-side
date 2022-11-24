@@ -127,6 +127,20 @@ async function run() {
       const response = await productsDb.updateOne(query, dataToUpdate, options);
       res.send(response);
     });
+
+    // deleting products
+    app.delete("/products/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const response = await productsDb.deleteOne(query);
+      res.send(response);
+    });
+
+    // users db
+    const usersDb = client.db("resaleDB").collection("users");
+
+    // get users
+    app.get("/users", async (req, res) => {});
   } catch (error) {
     console.log(error);
   }
