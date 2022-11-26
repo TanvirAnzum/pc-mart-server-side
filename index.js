@@ -74,7 +74,7 @@ async function run() {
     const productsDb = client.db("resaleDB").collection("products");
 
     // getting products
-    app.get("/products/:id", verifyJWT, async (req, res) => {
+    app.get("/products/:id", async (req, res) => {
       const limit = req.query.limit;
       const page = req.query.page;
       const email = req.query.email;
@@ -86,12 +86,38 @@ async function run() {
         3: "accessories",
       };
 
-      if (email !== req.decoded.email) {
-        res.status(403).send({ message: "unauthorized access" });
-      }
+      // if (email !== req.decoded.email) {
+      //   res.status(403).send({ message: "unauthorized access" });
+      // }
 
       const query = {};
       if (category_id) query.category = category[category_id];
+
+      const cursor = productsDb
+        .find(query)
+        .skip(page ? (limit ? page * limit : 0) : 0)
+        .limit(limit ? limit : 10);
+
+      const response = await cursor.toArray();
+      const totalCount = await productsDb.countDocuments(query);
+
+      res.send({
+        products: response,
+        totalCount: totalCount,
+      });
+    });
+
+    // getting producst
+
+    app.get("/products", async (req, res) => {
+      const limit = req.query.limit;
+      const page = req.query.page;
+      const email = req.query.email;
+      const status = req.query.status;
+
+      const query = {};
+      if (email) query["seller.email"] = email;
+      if (status) query.status = status;
 
       const cursor = productsDb
         .find(query)
@@ -122,7 +148,7 @@ async function run() {
       const options = { upsert: true };
       const dataToUpdate = {
         $set: {
-          ...updatedData.data,
+          ...updatedData,
         },
       };
       const response = await productsDb.updateOne(query, dataToUpdate, options);
@@ -162,8 +188,27 @@ async function run() {
 
     app.post("/users", async (req, res) => {
       const data = req.body;
-      await usersDb.insertOne(data);
-      res.send(data);
+      const upsert = req.query.upsert;
+      if (upsert) {
+        const user = await usersDb.findOne({ uid: data.uid });
+        if (user) {
+          res.send(data);
+        } else {
+          await usersDb.insertOne(data);
+          res.send(data);
+        }
+      } else {
+        await usersDb.insertOne(data);
+        res.send(data);
+      }
+    });
+
+    // check role
+    app.get("/role", async (req, res) => {
+      const email = req.query.email;
+      const query = { email };
+      const user = await usersDb.findOne(query);
+      res.send(user);
     });
 
     app.patch("/users/:id", async (req, res) => {
