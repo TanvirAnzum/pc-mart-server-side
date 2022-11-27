@@ -92,6 +92,7 @@ async function run() {
 
       const query = {};
       if (category_id) query.category = category[category_id];
+      query.status = "unsold";
 
       const cursor = productsDb
         .find(query)
@@ -114,10 +115,14 @@ async function run() {
       const page = req.query.page;
       const email = req.query.email;
       const status = req.query.status;
+      const boost = req.query.boost;
 
       const query = {};
       if (email) query["seller.email"] = email;
       if (status) query.status = status;
+      if (boost) query.boost = true;
+
+      console.log(query);
 
       const cursor = productsDb
         .find(query)
@@ -186,6 +191,14 @@ async function run() {
       });
     });
 
+    // isverified
+    app.get("/isVerified", async (req, res) => {
+      const email = req.query.email;
+      const result = await usersDb.findOne({ email });
+      const response = result.verified ? true : false;
+      res.send(response);
+    });
+
     app.post("/users", async (req, res) => {
       const data = req.body;
       const upsert = req.query.upsert;
@@ -229,6 +242,51 @@ async function run() {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
       const response = await usersDb.deleteOne(query);
+      res.send(response);
+    });
+
+    // booking collection
+
+    const bookingsDb = client.db("resaleDB").collection("bookings");
+
+    app.post("/bookings", async (req, res) => {
+      const data = req.body;
+      const response = await bookingsDb.insertOne(data);
+      return data;
+    });
+
+    app.get("/bookings", async (req, res) => {
+      const buyerEmail = req.query.buyer;
+      const sellerEmail = req.query.seller;
+
+      const query = {};
+      if (buyerEmail) query["buyer.email"] = buyerEmail;
+      if (sellerEmail) query["seller.email"] = sellerEmail;
+
+      const cursor = bookingsDb.find(query);
+      const result = await cursor.toArray();
+
+      res.send(result);
+    });
+
+    app.patch("/bookings/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const options = { upsert: true };
+      const updatedData = req.body;
+      const dataToUpdate = {
+        $set: {
+          ...updatedData,
+        },
+      };
+      const response = await bookingsDb.updateOne(query, dataToUpdate, options);
+      res.send(response);
+    });
+
+    app.delete("/bookings/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const response = await bookingsDb.deleteOne(query);
       res.send(response);
     });
   } catch (error) {
