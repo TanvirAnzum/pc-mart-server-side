@@ -5,7 +5,8 @@ require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
-const { response } = require("express");
+const { response, application } = require("express");
+const stripe = require("stripe")(process.env.STRIPE_SK);
 
 // express initialization
 
@@ -57,18 +58,6 @@ function verifyJWT(req, res, next) {
   });
 }
 
-// create jwt token
-
-app.post("/jwt", (req, res) => {
-  const data = req.body;
-  // console.log(data);
-  const token = jwt.sign(data, process.env.ACCESS_TOKEN_SECRET, {
-    expiresIn: "1d",
-  });
-
-  res.send({ token });
-});
-
 // function to connect with db
 
 async function run() {
@@ -112,6 +101,44 @@ async function run() {
       }
       next();
     };
+
+    // create jwt token
+
+    app.post("/jwt", async (req, res) => {
+      const data = req.body;
+
+      const query = { email: data.email };
+      const user = await usersDb.findOne(query);
+
+      console.log(data, user);
+
+      if (user) {
+        const token = jwt.sign(data, process.env.ACCESS_TOKEN_SECRET, {
+          expiresIn: "1d",
+        });
+        res.send({ token });
+      } else {
+        res.status(403).send({
+          message: "Forbidden Access",
+        });
+      }
+    });
+
+    // payment method
+    app.post("/create-payment-intent", async (req, res) => {
+      const booking = req.body;
+      const price = booking.price;
+      const amount = price * 100;
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        currency: "usd",
+        amount: amount,
+        payment_method_types: ["card"],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
 
     // getting products
     app.get("/products/:id", async (req, res) => {
@@ -318,6 +345,13 @@ async function run() {
       const cursor = bookingsDb.find(query);
       const result = await cursor.toArray();
 
+      res.send(result);
+    });
+
+    app.get("/bookings/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await bookingsDb.findOne(query);
       res.send(result);
     });
 
