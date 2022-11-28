@@ -53,7 +53,6 @@ function verifyJWT(req, res, next) {
       });
     }
     req.decoded = decoded;
-    // console.log(decoded);
     next();
   });
 }
@@ -82,9 +81,8 @@ async function run() {
     const verifySeller = async (req, res, next) => {
       const email = req.decoded.email;
       const query = { email };
-      // console.log(query);
       const user = await usersDb.findOne(query);
-      // console.log(user);
+
       if (user?.role !== "seller") {
         return res.status(403).send({ message: "forbidden access" });
       }
@@ -106,22 +104,10 @@ async function run() {
 
     app.post("/jwt", async (req, res) => {
       const data = req.body;
-
-      const query = { email: data.email };
-      const user = await usersDb.findOne(query);
-
-      console.log(data, user);
-
-      if (user) {
-        const token = jwt.sign(data, process.env.ACCESS_TOKEN_SECRET, {
-          expiresIn: "1d",
-        });
-        res.send({ token });
-      } else {
-        res.status(403).send({
-          message: "Forbidden Access",
-        });
-      }
+      const token = jwt.sign(data, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1d",
+      });
+      res.send({ token });
     });
 
     // payment method
@@ -177,7 +163,7 @@ async function run() {
 
     // getting producst
 
-    app.get("/products", verifyJWT, async (req, res) => {
+    app.get("/products", async (req, res) => {
       const limit = req.query.limit;
       const page = req.query.page;
       const email = req.query.email;
@@ -190,8 +176,6 @@ async function run() {
       if (status) query.status = status;
       if (boost) query.boost = true;
       if (isReported) query.isReported = "yes";
-
-      // console.log(query);
 
       const cursor = productsDb
         .find(query)
@@ -250,7 +234,6 @@ async function run() {
 
       if (seller) query.role = "seller";
       if (buyer) query.role = "buyer";
-      console.log(query);
 
       const totalCount = await usersDb.countDocuments(query);
       const cursor = usersDb
@@ -266,14 +249,14 @@ async function run() {
     });
 
     // isverified
-    app.get("/isVerified", verifyJWT, async (req, res) => {
+    app.get("/isVerified", async (req, res) => {
       const email = req.query.email;
       const result = await usersDb.findOne({ email });
       const response = result?.verified ? true : false;
       res.send(response);
     });
 
-    app.post("/users", verifyJWT, async (req, res) => {
+    app.post("/users", async (req, res) => {
       const data = req.body;
       const upsert = req.query.upsert;
       if (upsert) {
@@ -291,7 +274,7 @@ async function run() {
     });
 
     // check role
-    app.get("/role", verifyJWT, async (req, res) => {
+    app.get("/role", async (req, res) => {
       const email = req.query.email;
       const query = { email };
       const user = await usersDb.findOne(query);
@@ -302,7 +285,6 @@ async function run() {
       const email = req.query.email;
       const query = { email };
 
-      console.log(query);
       const options = { upsert: true };
       const updatedData = req.body;
       const dataToUpdate = {
@@ -339,8 +321,6 @@ async function run() {
       const query = {};
       if (buyerEmail) query["buyer.email"] = buyerEmail;
       if (sellerEmail) query["seller.email"] = sellerEmail;
-
-      console.log(query);
 
       const cursor = bookingsDb.find(query);
       const result = await cursor.toArray();
