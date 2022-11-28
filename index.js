@@ -116,11 +116,13 @@ async function run() {
       const email = req.query.email;
       const status = req.query.status;
       const boost = req.query.boost;
+      const isReported = req.query.isReported;
 
       const query = {};
       if (email) query["seller.email"] = email;
       if (status) query.status = status;
       if (boost) query.boost = true;
+      if (isReported) query.isReported = "yes";
 
       console.log(query);
 
@@ -175,8 +177,14 @@ async function run() {
     app.get("/users", async (req, res) => {
       const limit = req.query.limit;
       const page = req.query.page;
+      const seller = req.query.seller;
+      const buyer = req.query.buyer;
 
       const query = {};
+
+      if (seller) query.role = "seller";
+      if (buyer) query.role = "buyer";
+      console.log(query);
 
       const totalCount = await usersDb.countDocuments(query);
       const cursor = usersDb
@@ -224,9 +232,11 @@ async function run() {
       res.send(user);
     });
 
-    app.patch("/users/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: ObjectId(id) };
+    app.patch("/users", async (req, res) => {
+      const email = req.query.email;
+      const query = { email };
+
+      console.log(query);
       const options = { upsert: true };
       const updatedData = req.body;
       const dataToUpdate = {
@@ -238,10 +248,13 @@ async function run() {
       res.send(response);
     });
 
-    app.delete("/users/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: ObjectId(id) };
+    app.delete("/users", async (req, res) => {
+      const email = req.query.email;
+      const query = { email };
       const response = await usersDb.deleteOne(query);
+      const deleteProduct = await productsDb.deleteMany({
+        "seller.email": email,
+      });
       res.send(response);
     });
 
@@ -262,6 +275,8 @@ async function run() {
       const query = {};
       if (buyerEmail) query["buyer.email"] = buyerEmail;
       if (sellerEmail) query["seller.email"] = sellerEmail;
+
+      console.log(query);
 
       const cursor = bookingsDb.find(query);
       const result = await cursor.toArray();
