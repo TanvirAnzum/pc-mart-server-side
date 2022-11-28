@@ -52,6 +52,7 @@ function verifyJWT(req, res, next) {
       });
     }
     req.decoded = decoded;
+    // console.log(decoded);
     next();
   });
 }
@@ -60,6 +61,7 @@ function verifyJWT(req, res, next) {
 
 app.post("/jwt", (req, res) => {
   const data = req.body;
+  // console.log(data);
   const token = jwt.sign(data, process.env.ACCESS_TOKEN_SECRET, {
     expiresIn: "1d",
   });
@@ -72,6 +74,44 @@ app.post("/jwt", (req, res) => {
 async function run() {
   try {
     const productsDb = client.db("resaleDB").collection("products");
+    const bookingsDb = client.db("resaleDB").collection("bookings");
+    const usersDb = client.db("resaleDB").collection("users");
+
+    // verify admin, verify seller
+
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email };
+      const user = await usersDb.findOne(query);
+
+      if (user?.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
+    const verifySeller = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email };
+      // console.log(query);
+      const user = await usersDb.findOne(query);
+      // console.log(user);
+      if (user?.role !== "seller") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
+    const verifyBoth = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email };
+      const user = await usersDb.findOne(query);
+
+      if (user?.role !== "seller" || user?.role === "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
 
     // getting products
     app.get("/products/:id", async (req, res) => {
@@ -110,7 +150,7 @@ async function run() {
 
     // getting producst
 
-    app.get("/products", async (req, res) => {
+    app.get("/products", verifyJWT, async (req, res) => {
       const limit = req.query.limit;
       const page = req.query.page;
       const email = req.query.email;
@@ -124,7 +164,7 @@ async function run() {
       if (boost) query.boost = true;
       if (isReported) query.isReported = "yes";
 
-      console.log(query);
+      // console.log(query);
 
       const cursor = productsDb
         .find(query)
@@ -141,14 +181,14 @@ async function run() {
     });
 
     // creating products
-    app.post("/products", async (req, res) => {
+    app.post("/products", verifyJWT, verifySeller, async (req, res) => {
       const data = req.body;
       await productsDb.insertOne(data);
       res.send(data);
     });
 
     // updating products
-    app.patch("/products/:id", async (req, res) => {
+    app.patch("/products/:id", verifyJWT, async (req, res) => {
       const updatedData = req.body;
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
@@ -163,7 +203,7 @@ async function run() {
     });
 
     // deleting products
-    app.delete("/products/:id", async (req, res) => {
+    app.delete("/products/:id", verifyJWT, verifyBoth, async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
       const response = await productsDb.deleteOne(query);
@@ -171,10 +211,9 @@ async function run() {
     });
 
     // users db
-    const usersDb = client.db("resaleDB").collection("users");
 
     // get users
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyJWT, async (req, res) => {
       const limit = req.query.limit;
       const page = req.query.page;
       const seller = req.query.seller;
@@ -200,14 +239,14 @@ async function run() {
     });
 
     // isverified
-    app.get("/isVerified", async (req, res) => {
+    app.get("/isVerified", verifyJWT, async (req, res) => {
       const email = req.query.email;
       const result = await usersDb.findOne({ email });
-      const response = result.verified ? true : false;
+      const response = result?.verified ? true : false;
       res.send(response);
     });
 
-    app.post("/users", async (req, res) => {
+    app.post("/users", verifyJWT, async (req, res) => {
       const data = req.body;
       const upsert = req.query.upsert;
       if (upsert) {
@@ -225,14 +264,14 @@ async function run() {
     });
 
     // check role
-    app.get("/role", async (req, res) => {
+    app.get("/role", verifyJWT, async (req, res) => {
       const email = req.query.email;
       const query = { email };
       const user = await usersDb.findOne(query);
       res.send(user);
     });
 
-    app.patch("/users", async (req, res) => {
+    app.patch("/users", verifyJWT, async (req, res) => {
       const email = req.query.email;
       const query = { email };
 
@@ -248,7 +287,7 @@ async function run() {
       res.send(response);
     });
 
-    app.delete("/users", async (req, res) => {
+    app.delete("/users", verifyJWT, verifyAdmin, async (req, res) => {
       const email = req.query.email;
       const query = { email };
       const response = await usersDb.deleteOne(query);
@@ -260,15 +299,13 @@ async function run() {
 
     // booking collection
 
-    const bookingsDb = client.db("resaleDB").collection("bookings");
-
-    app.post("/bookings", async (req, res) => {
+    app.post("/bookings", verifyJWT, async (req, res) => {
       const data = req.body;
       const response = await bookingsDb.insertOne(data);
       return data;
     });
 
-    app.get("/bookings", async (req, res) => {
+    app.get("/bookings", verifyJWT, async (req, res) => {
       const buyerEmail = req.query.buyer;
       const sellerEmail = req.query.seller;
 
@@ -284,7 +321,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/bookings/:id", async (req, res) => {
+    app.patch("/bookings/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
       const options = { upsert: true };
@@ -298,7 +335,7 @@ async function run() {
       res.send(response);
     });
 
-    app.delete("/bookings/:id", async (req, res) => {
+    app.delete("/bookings/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
       const response = await bookingsDb.deleteOne(query);
